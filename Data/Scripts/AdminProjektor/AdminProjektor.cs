@@ -16,12 +16,33 @@ namespace AdminProjektor
         "AdminProjektor_Small")]
     public class AdminProjektorLogic : MyGameLogicComponent
     {
-        private const string MOD_NAME         = "AdminProjektor";
-        private const int    BUILD_BATCH_SIZE  = 5;
-        private const int    REPAIR_BATCH_SIZE = 10;
+        private const string MOD_NAME    = "AdminProjektor";
+        private const long   LOG_CHANNEL = 1995999L;
+        private const string MOD_FULL   = "Phantombite_AdminProjektor";
         private const float  WELD_AMOUNT       = 5000f;
         private const int    PHASE_DELAY       = 120;
         private const int    MAX_STUCK_FRAMES  = 10;
+
+        // Batch-Größen je nach PerfLevel: 0→5/10 | 1→2/5 | 2→1/2 | 3→1/1
+        public static int GetBuildBatch()
+        {
+            switch (AdminProjektor_Session.PerfLevel)
+            {
+                case 1:      return 2;
+                case 2: case 3: return 1;
+                default:     return 5;
+            }
+        }
+        public static int GetRepairBatch()
+        {
+            switch (AdminProjektor_Session.PerfLevel)
+            {
+                case 1:  return 5;
+                case 2:  return 2;
+                case 3:  return 1;
+                default: return 10;
+            }
+        }
 
         // Phasen: 0=idle, 1=build, 2=delay, 3=repair
         private IMyProjector            _projector;
@@ -94,12 +115,14 @@ namespace AdminProjektor
                 _phase = 1;
                 MyAPIGateway.Utilities.ShowMessage(MOD_NAME,
                     string.Format("Baue {0} Blöcke...", _projector.RemainingBlocks));
+                Log("StartWork: Build — " + _projector.RemainingBlocks + " Blöcke, PerfLevel=" + AdminProjektor_Session.PerfLevel);
             }
             else
             {
                 _phase = 2;
                 _delayCounter = PHASE_DELAY; // sofort zur Reparatur
                 MyAPIGateway.Utilities.ShowMessage(MOD_NAME, "Keine Projektion — Reparatur...");
+                Log("StartWork: Direkt Reparatur");
             }
 
             _isWorking   = true;
@@ -129,6 +152,7 @@ namespace AdminProjektor
                     _phase = 2;
                     _delayCounter = 0;
                     MyAPIGateway.Utilities.ShowMessage(MOD_NAME, "Build fertig. Repariere...");
+                    Log("Phase 1→2: Build abgeschlossen");
                     return;
                 }
 
@@ -158,7 +182,9 @@ namespace AdminProjektor
                 if (ownerId == 0) return;
 
                 // requestInstant = true — Block sofort erstellen
-                int count = Math.Min(BUILD_BATCH_SIZE, buildable.Count);
+                int buildBatch = GetBuildBatch();
+                int count = Math.Min(buildBatch, buildable.Count);
+                Log("Build: " + count + "/" + buildable.Count + " Blöcke (Batch=" + buildBatch + ")", 1);
                 for (int i = 0; i < count; i++)
                 {
                     try { _projector.Build(buildable[i], ownerId, _projector.EntityId, true, ownerId); }
@@ -214,7 +240,9 @@ namespace AdminProjektor
                     return;
                 }
 
-                int count = Math.Min(REPAIR_BATCH_SIZE, _repairQueue.Count);
+                int repairBatch = GetRepairBatch();
+                int count = Math.Min(repairBatch, _repairQueue.Count);
+                Log("Repair: " + count + "/" + (_repairQueue.Count) + " Blöcke (Batch=" + repairBatch + ")", 1);
                 for (int i = 0; i < count; i++)
                 {
                     var block = _repairQueue[0];
@@ -248,6 +276,18 @@ namespace AdminProjektor
             _repairQueue.Clear();
             NeedsUpdate &= ~MyEntityUpdateEnum.EACH_FRAME;
             MyAPIGateway.Utilities.ShowMessage(MOD_NAME, "Fertig.");
+            Log("Finish: Alle Blöcke gebaut und repariert.");
+        }
+
+        private void Log(string msg, int level = 0)
+        {
+            try
+            {
+                MyLog.Default.WriteLineAndConsole("[PB.AdminProjektor] [" + level + "] " + msg);
+                MyAPIGateway.Utilities.SendModMessage(LOG_CHANNEL,
+                    "LOG|" + MOD_FULL + "|" + level + "|AdminProjektorLogic|" + msg);
+            }
+            catch { }
         }
 
         public override void Close()
