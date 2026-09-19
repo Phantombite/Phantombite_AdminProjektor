@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Sandbox.Common.ObjectBuilders;
 using Sandbox.ModAPI;
 using Sandbox.ModAPI.Interfaces.Terminal;
+using VRage.Game;
 using VRage.Game.Components;
 using VRage.Game.ModAPI;
 using VRage.ModAPI;
@@ -281,6 +282,7 @@ namespace AdminProjektor
 
         private void Log(string msg, int level = 0)
         {
+            if (level > AdminProjektor_Session.LogLevel) return;
             try
             {
                 MyLog.Default.WriteLineAndConsole("[PB.AdminProjektor] [" + level + "] " + msg);
